@@ -135,3 +135,99 @@ https://tusitio/#name=Test&gpx=%3Cgpx%20version%3D%221.1%22%3E...%3C%2Fgpx%3E
 ```
 https://tusitio/#name=Morning&gpx_url=https://ejemplo.com/route.gpx
 ```
+
+## ¿Por qué “solo coge el nombre” en el Atajo A?
+Esto ocurre cuando en el paso 3 (Codificar → Base64) la entrada es el “Nombre” del archivo (texto) en lugar del “Archivo” (datos). Entonces solo se codifica el nombre, no el contenido.
+
+Cómo solucionarlo
+1) En el paso 3 “Codificar”:
+   - Toca la “píldora” azul que indica la entrada (probablemente pone “Nombre”).
+   - Elige “Seleccionar variable” o “Variable mágica”.
+   - Selecciona “Entrada del atajo”.
+   - Asegúrate de que aparece como Archivo (icono de clip/archivo), NO como Nombre (texto).
+   - Deja Modo = Base64.
+
+2) En el paso 6 “Texto”:
+   - Escribe la parte fija: https://lockevod.github.io/gpx/#gpx=
+   - Inserta la variable que renombraste como “Base64URL” (resultado del paso 4).
+   - Escribe &name=
+   - Inserta la variable “NombreURL” (resultado del paso 5).
+   - Importante: no escribas [[Base64URL]] ni [[NombreURL]] a mano; inserta variables.
+
+Comprobación rápida
+- Abre con &log=1 y mira la consola:
+  - “Base64 decoded length” debería ser grande (normalmente > 1–2 KB).
+  - Si ves ~50–100 bytes, todavía estás enviando el nombre y no el archivo.
+
+## Si “Codificar (Base64)” coge el Nombre y no el Archivo
+iOS a veces convierte la variable a “Nombre” (texto). Debe ser “Archivo”.
+
+Forzar que sea Archivo (elige una de estas opciones antes del paso 3 “Codificar”):
+- Opción 1 (recomendada)
+  1) Acción: “Obtener archivos de la entrada” (en algunas versiones se llama “Obtener archivo de la entrada”).
+  2) Si la entrada puede traer varios, añade “Obtener elemento de la lista” → Índice 1.
+  3) Ahora en “Codificar (Base64)” toca la píldora azul y selecciona esa salida (debe verse como Archivo).
+- Opción 2 (coerción rápida)
+  1) Acción: “Vista rápida” sobre “Entrada del atajo” (abre una previsualización del GPX).
+  2) Elimina “Vista rápida”.
+  3) En “Codificar (Base64)”, selecciona de nuevo “Entrada del atajo” (ahora suele quedar como Archivo).
+- Opción 3 (detalles)
+  1) Acción: “Obtener detalles de archivos” → “Tamaño” sobre “Entrada del atajo”.
+  2) Luego “Codificar (Base64)” con “Entrada del atajo” (esto fuerza a tratarlo como datos/archivo).
+
+Comprobación
+- Añade &log=1 a la URL final. En consola deberías ver:
+  - Base64 decoded length: (miles de bytes, no ~50–100).
+  - Si sigue siendo ~50–100, aún estás pasando “Nombre”.
+
+## Atajo A (seguro) — Pasos completos con coerción a Archivo
+1) Recibir entrada del atajo (Archivos .gpx, Hoja para compartir: ON)
+2) Obtener archivos de la entrada
+3) (Si hay varios) Obtener elemento de la lista → Índice 1
+4) Obtener detalles de archivos → Nombre (guárdalo como Nombre)
+5) Codificar → Base64
+   - Entrada: la salida del paso 2/3 (Archivo), NO “Nombre”.
+6) Sustituir texto → + → -
+7) Sustituir texto → / → _
+8) Sustituir texto → = → (vacío)
+   - Renómbralo “Base64URL”
+9) Codificar URL (Nombre) → “NombreURL”
+10) Texto
+```
+https://lockevod.github.io/gpx/#gpx=(Base64URL como variable)&name=(NombreURL como variable)
+```
+11) Abrir URL
+
+## Atajo C — Sin Base64, inyectando el GPX por JavaScript (100% fiable)
+Usa el puente postMessage que trae la web. No hay límites de longitud en la URL ni problemas de tipos.
+
+Pasos
+1) Recibir entrada del atajo (Archivos .gpx)
+2) Obtener archivos de la entrada
+3) (Si varios) Obtener elemento de la lista → Índice 1
+4) Abrir URL
+   - URL: https://lockevod.github.io/gpx/
+   - Abrir en: Safari (no vista rápida)
+5) Esperar
+   - 0.7–1.0 segundos
+6) Ejecutar JavaScript en página web
+   - Página: Safari
+   - Código (inserta variables con las píldoras azules):
+```js
+/* Pega aquí variables del Atajo: */
+const name = /* (Nombre del archivo) */ 
+  /* Inserta variable “Nombre” del paso 4 del Atajo A seguro, o usa un texto */;
+const gpx = /* (Contenido GPX como texto) */
+  /* Si tienes “Convertir a texto” no disponible, usa “Codificar”->Base64 + atob en JS:
+     const b64 = (variable Base64);
+     const gpx = atob(b64); */;
+
+window.postMessage({ type: "cw-gpx", name, gpx }, "*");
+```
+Notas
+- Si no puedes obtener el GPX como texto en Atajos, puedes:
+  - Codificar (Base64) el Archivo y en el JS decodificar: const gpx = atob(/*Base64*/);
+- La app ya escucha postMessage y cargará el GPX.
+
+Diagnóstico rápido
+- Si ves en consola “[cw] GPX error: No parseable layers…”, el texto recibido no trae <trk>/<rte>/<wpt> (está truncado). Revisa que el paso “Codificar (Base64)” use el Archivo y no el Nombre, o usa el Atajo C.

@@ -136,6 +136,11 @@
     return txt;
   }
 
+  function hasParsableGpxText(txt) {
+    if (typeof txt !== "string") return false;
+    return /<trkpt\b/i.test(txt) || /<rtept\b/i.test(txt) || /<wpt\b/i.test(txt) || /<trk\b/i.test(txt) || /<rte\b/i.test(txt);
+  }
+
   async function loadFromParams() {
     const { gpx, gpxUrl, name } = getParams();
     if (!gpx && !gpxUrl) {
@@ -191,16 +196,25 @@
         throw new Error("Invalid GPX payload");
       }
 
+      // Detecciones adicionales: posible truncado / sin capas parseables
+      const len = decoded.length;
+      const parseable = hasParsableGpxText(decoded);
+      if (len < 500 || !parseable) {
+        L.warn("Decoded GPX looks very small or has no trk/rte/wpt. length:", len, "parseable:", parseable);
+      }
+
       // Expose last decoded payload for inspection
       window.__lastIngest = {
         source: "gpx_inline",
         name,
-        length: decoded.length,
+        length: len,
         sample: snippet(decoded),
+        text: decoded,            // texto completo para inspección en DevTools
+        parseable,
         when: Date.now()
       };
 
-      L.info("Decoded GPX OK. Length:", decoded.length, "Sample:", snippet(decoded));
+      L.info("Decoded GPX OK. Length:", len, "Sample:", snippet(decoded));
       L.info("Calling loader with inline gpx, name:", name);
       window.cwLoadGPXFromString && window.cwLoadGPXFromString(decoded, name);
     } catch (e) {

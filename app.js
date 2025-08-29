@@ -1224,10 +1224,6 @@ document.addEventListener("DOMContentLoaded", () => {
     return (weatherIconsMap[key] || weatherIconsMap.default)[dayOrNight];
   }
 
-  function getDetailedCategoryMeteoBlue(pictocode) {
-    return MB_PICTO_TO_KEY[Number(pictocode)] || "default";
-  }
-
   // --- OpenWeather mappers (appended, no other code modified) ---
   function getDetailedCategoryOpenWeather(owmId) {
     const id = Number(owmId);
@@ -2593,7 +2589,14 @@ function luminanceBarHTML(val) {
   init();
 
   // --- GPX public loader: logging + error handling ---
-  // Nota: si ya existía, lo sobrescribimos con versión con más logging.
+  // Helper: comprobar si hay algo parseable (track/route/waypoint)
+  function hasParsableGpxText(txt) {
+    if (typeof txt !== "string") return false;
+    const s = txt.slice(0, 200000); // evita regex sobre ficheros enormes (no usamos el resto)
+    return /<trkpt\b/i.test(s) || /<rtept\b/i.test(s) || /<wpt\b/i.test(s) || /<trk\b/i.test(s) || /<rte\b/i.test(s);
+  }
+
+  // Nota: si ya existía, se sobrescribe con más logging y validación.
   window.cwLoadGPXFromString = async function loadGPXFromString(gpxText, nameHint = "route.gpx") {
     try {
       const head = (typeof gpxText === "string") ? gpxText.slice(0, 120) : String(gpxText);
@@ -2602,6 +2605,15 @@ function luminanceBarHTML(val) {
 
       if (!gpxText || typeof gpxText !== "string") {
         logDebug("cwLoadGPXFromString: invalid gpxText", true);
+        return;
+      }
+      // Validación rápida: si no hay trk/rte/wpt, avisar y abortar
+      if (!hasParsableGpxText(gpxText)) {
+        const bytes = gpxText.length;
+        const hint = "El GPX recibido no contiene tracks/rutas/puntos o está truncado.";
+        console.warn("[cw] GPX pre-parse failed (no trk/rte/wpt). size:", bytes);
+        logDebug(`${hint} Tamaño=${bytes}B. Prueba con gpx_url o revisa el Atajo (debe codificar el archivo completo a Base64).`, true);
+        alert(`${hint}\n\nTamaño=${bytes}B.\n\nSugerencias:\n• Usa la variante gpx_url (enlace directo al .gpx).\n• En el Atajo, asegúrate de que “Codificar (Base64)” se aplique al archivo completo (no al nombre) y que el resultado se usa en la URL.`);
         return;
       }
       if (typeof L === "undefined" || !L.GPX) {
@@ -2623,7 +2635,6 @@ function luminanceBarHTML(val) {
       let loadedFired = false;
       let errorFired = false;
 
-      // Constructor protegido
       let gpxLayer;
       try {
         gpxLayer = new L.GPX(gpxText, {
@@ -2667,11 +2678,14 @@ function luminanceBarHTML(val) {
 
       gpxLayer.on("error", (e) => {
         errorFired = true;
-        const msg = (e && (e.message || e.error)) || "unknown";
-        console.error("[cw] GPX error event:", msg, e);
-        logDebug("Evento error al cargar GPX: " + msg, true);
-        // pista: muestra cabecera del GPX
+        const detail = (e && (e.err || e.error || e.message)) || "unknown";
+        console.error("[cw] GPX error event:", detail, e);
+        logDebug("Evento error al cargar GPX: " + detail, true);
         console.debug("[cw] GPX head snippet:", head);
+        // Mensaje más claro para el caso típico de “No parseable layers…”
+        if (String(detail).includes("No parseable layers")) {
+          alert("El GPX no contiene ningún track/ruta/punto parseable.\n\nRevisa que el archivo no esté vacío o truncado.\nSugerencia: usa gpx_url en el atajo o verifica que la codificación Base64 incluya todo el archivo.");
+        }
       });
 
       gpxLayer.on("add", () => {
