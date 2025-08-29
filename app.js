@@ -1277,14 +1277,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   // --- end OpenWeather mappers ---
 
-
-
-
-
-
-
-
-
   function makeWindSVGIcon(deg, speedKmh) {
     const intensity = beaufortIntensity(speedKmh);
     const sty = styleByIntensity(intensity);
@@ -2573,5 +2565,56 @@ function luminanceBarHTML(val) {
 
   init();
 
-  
+  // --- GPX public loader + postMessage bridge (appended) ---
+  async function loadGPXFromString(gpxText, nameHint = "route.gpx") {
+    try {
+      if (!gpxText || typeof gpxText !== "string") return;
+      if (trackLayer) map.removeLayer(trackLayer);
+      trackLayer = new L.GPX(gpxText, {
+        async: true,
+        polyline_options: { color: 'blue' },
+        marker_options: {
+          startIconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png",
+          endIconUrl:   "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
+          shadowUrl:    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+          wptIconUrl: null
+        }
+      });
+      trackLayer.on("loaded", async (evt) => {
+        try {
+          map.fitBounds(evt.target.getBounds());
+          await segmentRouteByTime(evt.target.toGeoJSON());
+          const baseName = (nameHint || "route").replace(/\.[^/.]+$/,"");
+          const metaName = (evt.target.get_name && evt.target.get_name()) || baseName;
+          const rutaEl = document.getElementById("rutaName");
+          if (rutaEl) rutaEl.textContent = t("route_prefix") + (metaName || baseName);
+          replaceGPXMarkers(evt.target);
+          map.fitBounds(evt.target.getBounds(), { padding: [20, 20], maxZoom: 15 });
+        } catch (e) {
+          logDebug("Error processing GPX: " + e.message, true);
+        }
+      });
+      trackLayer.addTo(map);
+    } catch (err) {
+      logDebug("Error loading GPX: " + err.message, true);
+      alert(t("error_reading_gpx", { msg: err.message }));
+    }
+  }
+  // Expose for external callers (ingest layer / Shortcuts)
+  window.cwLoadGPXFromString = loadGPXFromString;
+
+  // Optional: allow Apple Shortcut to postMessage GPX directly
+  window.addEventListener("message", (ev) => {
+    try {
+      const d = ev?.data;
+      if (!d || typeof d !== "object") return;
+      if (d.type !== "cw-gpx") return;
+      const txt = d.gpx || d.payload;
+      const name = d.name || "Shared route";
+      if (typeof txt === "string" && txt.trim().length) {
+        loadGPXFromString(txt, name);
+      }
+    } catch (_) {}
+  }, false);
+  // --- end GPX public loader + postMessage bridge ---
 });
