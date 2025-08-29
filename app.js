@@ -2565,30 +2565,65 @@ function luminanceBarHTML(val) {
 
   init();
 
-  // --- GPX public loader for ingest.js (minimal, reuses existing flow) ---
-  async function loadGPXFromString(gpxText, nameHint = "route.gpx") {
+  // --- GPX public loader: logging + error handling ---
+  // Nota: si ya existía, lo sobrescribimos con versión con más logging.
+  window.cwLoadGPXFromString = async function loadGPXFromString(gpxText, nameHint = "route.gpx") {
     try {
-      if (!gpxText || typeof gpxText !== "string") return;
-      // limpia capa previa si existe
-      if (trackLayer) map.removeLayer(trackLayer);
+      const head = (typeof gpxText === "string") ? gpxText.slice(0, 120) : String(gpxText);
+      logDebug(`cwLoadGPXFromString: called, len=${(gpxText && gpxText.length) || 0}, name=${nameHint}`);
+      console.debug("[cw] loader input head:", head);
 
-      trackLayer = new L.GPX(gpxText, {
-        async: true,
-        polyline_options: { color: 'blue' },
-        marker_options: {
-          startIconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png",
-          endIconUrl:   "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
-          shadowUrl:    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-          wptIconUrl: null
-        }
-      });
+      if (!gpxText || typeof gpxText !== "string") {
+        logDebug("cwLoadGPXFromString: invalid gpxText", true);
+        return;
+      }
+      if (typeof L === "undefined" || !L.GPX) {
+        console.error("[cw] Leaflet/leaflet-gpx not ready");
+        logDebug("Leaflet/leaflet-gpx no está listo", true);
+        return;
+      }
+      if (!map) {
+        console.warn("[cw] map not initialized yet");
+      }
 
-      trackLayer.on("loaded", async (evt) => {
+      if (trackLayer) {
         try {
+          map.removeLayer(trackLayer);
+          logDebug("cwLoadGPXFromString: removed previous track layer");
+        } catch (_) {}
+      }
+
+      let loadedFired = false;
+      let errorFired = false;
+
+      // Constructor protegido
+      let gpxLayer;
+      try {
+        gpxLayer = new L.GPX(gpxText, {
+          async: true,
+          polyline_options: { color: 'blue' },
+          marker_options: {
+            startIconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png",
+            endIconUrl:   "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
+            shadowUrl:    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+            wptIconUrl: null
+          }
+        });
+      } catch (e) {
+        console.error("[cw] L.GPX constructor error:", e);
+        logDebug("Error creando L.GPX: " + e.message, true);
+        return;
+      }
+
+      trackLayer = gpxLayer;
+
+      gpxLayer.on("loaded", async (evt) => {
+        loadedFired = true;
+        try {
+          console.debug("[cw] GPX loaded event; bounds:", evt.target.getBounds());
           map.fitBounds(evt.target.getBounds());
           await segmentRouteByTime(evt.target.toGeoJSON());
 
-          // Nombre de ruta (usa meta si existe o fallback al hint)
           const baseName = (nameHint || "route").replace(/\.[^/.]+$/,"");
           const metaName = (evt.target.get_name && evt.target.get_name()) || baseName;
           const rutaEl = document.getElementById("rutaName");
@@ -2596,19 +2631,41 @@ function luminanceBarHTML(val) {
 
           replaceGPXMarkers(evt.target);
           map.fitBounds(evt.target.getBounds(), { padding: [20, 20], maxZoom: 15 });
-          logDebug("GPX cargado desde ingest");
+          logDebug("GPX cargado desde ingest ✓");
         } catch (e) {
+          console.error("[cw] on loaded processing error:", e);
           logDebug("Error procesando GPX: " + e.message, true);
         }
       });
 
-      trackLayer.addTo(map);
+      gpxLayer.on("error", (e) => {
+        errorFired = true;
+        const msg = (e && (e.message || e.error)) || "unknown";
+        console.error("[cw] GPX error event:", msg, e);
+        logDebug("Evento error al cargar GPX: " + msg, true);
+        // pista: muestra cabecera del GPX
+        console.debug("[cw] GPX head snippet:", head);
+      });
+
+      gpxLayer.on("add", () => {
+        console.debug("[cw] GPX layer added to map");
+      });
+
+      gpxLayer.addTo(map);
+      console.debug("[cw] GPX layer addTo(map) called");
+
+      // Watchdog: si no dispara loaded ni error en 5s, informar
+      setTimeout(() => {
+        if (!loadedFired && !errorFired) {
+          console.warn("[cw] GPX neither loaded nor error after 5s");
+          logDebug("GPX no terminó de cargar en 5s (ni loaded ni error). Revisa el GPX o la consola.", true);
+        }
+      }, 5000);
     } catch (err) {
+      console.error("[cw] loader outer error:", err);
       logDebug("Error cargando GPX: " + err.message, true);
       alert(t("error_reading_gpx", { msg: err.message }));
     }
-  }
-  // expón para gpx-ingest.js
-  window.cwLoadGPXFromString = loadGPXFromString;
+  };
   // --- end GPX public loader ---
 });

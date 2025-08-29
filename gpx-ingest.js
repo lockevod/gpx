@@ -143,16 +143,17 @@
       return;
     }
 
-    await (async () => {
-      const ok = await (new Promise((res) => {
-        let n = 0;
-        const t = setInterval(() => {
-          const ready = typeof window.cwLoadGPXFromString === "function";
-          if (ready || ++n >= 120) { clearInterval(t); res(ready); }
-        }, 250);
-      }));
-      if (!ok) L.warn("cwLoadGPXFromString not found after wait; proceeding anyway (may fail).");
-    })();
+    // Log readiness attempts
+    let tries = 0;
+    const ready = await (new Promise((res) => {
+      const t = setInterval(() => {
+        tries++;
+        const ok = typeof window.cwLoadGPXFromString === "function";
+        if (ok || tries >= 120) { clearInterval(t); res(ok); }
+      }, 250);
+    }));
+    L.info("cwLoadGPXFromString ready:", ready, "after tries:", tries);
+    if (!ready) L.warn("cwLoadGPXFromString not found after wait; proceeding anyway (may fail).");
 
     try {
       if (gpxUrl) {
@@ -161,6 +162,8 @@
           L.err("Fetched content does not look like GPX:", snippet(txt));
           throw new Error("Fetched content is not GPX");
         }
+        // Expose for debugging
+        window.__lastIngest = { source: "gpx_url", name, length: txt.length, sample: snippet(txt), when: Date.now() };
         L.info("Calling loader from gpx_url, name:", name);
         window.cwLoadGPXFromString && window.cwLoadGPXFromString(txt, name);
         return;
@@ -168,8 +171,6 @@
 
       // gpx param present
       L.info("Processing inline gpx param…");
-
-      // NEW: sanitize common wrappers before detection/decoding
       const gpxClean = sanitizeGpxParam(gpx);
 
       let decoded = null;
@@ -189,6 +190,15 @@
         L.err("Invalid GPX payload after decode attempts. Sample:", snippet(decoded || gpxClean));
         throw new Error("Invalid GPX payload");
       }
+
+      // Expose last decoded payload for inspection
+      window.__lastIngest = {
+        source: "gpx_inline",
+        name,
+        length: decoded.length,
+        sample: snippet(decoded),
+        when: Date.now()
+      };
 
       L.info("Decoded GPX OK. Length:", decoded.length, "Sample:", snippet(decoded));
       L.info("Calling loader with inline gpx, name:", name);
