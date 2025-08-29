@@ -1,4 +1,23 @@
 (function () {
+  // Verbose flag from ?log=1 or #log=1 (also accepts ingest_log)
+  const VERBOSE = (() => {
+    const q = new URLSearchParams(window.location.search || "");
+    const h = new URLSearchParams((window.location.hash || "").replace(/^#/, ""));
+    const v = (h.get("log") || q.get("log") || h.get("ingest_log") || q.get("ingest_log") || "").toLowerCase();
+    return v === "1" || v === "true" || v === "yes";
+  })();
+  const L = {
+    info: (...a) => { if (VERBOSE) console.log("[ingest]", ...a); },
+    warn: (...a) => console.warn("[ingest]", ...a),
+    err:  (...a) => console.error("[ingest]", ...a),
+  };
+  const snippet = (s, n = 200) => {
+    if (typeof s !== "string") return String(s);
+    const clean = s.replace(/\s+/g, " ").trim();
+    if (clean.length <= n) return clean;
+    return clean.slice(0, Math.floor(n / 2)) + " … " + clean.slice(-Math.floor(n / 2));
+  };
+
   const until = (cond, { tries = 120, delay = 250 } = {}) =>
     new Promise((res) => {
       let n = 0;
@@ -13,61 +32,136 @@
     const hstr = (window.location.hash || "").replace(/^#/, "");
     const h = new URLSearchParams(hstr);
     const get = (k) => h.get(k) ?? q.get(k) ?? null;
-    return {
+    const out = {
       gpx: get("gpx"),
       gpxUrl: get("gpx_url") || get("url"),
       name: get("name") || "Shared route"
     };
+    L.info("Params:", {
+      hasGpx: !!out.gpx, gpxLen: out.gpx ? out.gpx.length : 0,
+      hasGpxUrl: !!out.gpxUrl, name: out.name
+    });
+    if (out.gpx) L.info("gpx (head/tail):", snippet(out.gpx));
+    if (out.gpxUrl) L.info("gpx_url:", out.gpxUrl);
+    return out;
+  }
+
+  function normalizeB64(b64) {
+    // URL-safe to standard + add padding
+    let s = String(b64 || "").replace(/-/g, "+").replace(/_/g, "/");
+    const mod = s.length % 4;
+    if (mod === 2) s += "==";
+    else if (mod === 3) s += "=";
+    else if (mod === 1) {
+      // uncommon, likely not valid base64
+      L.warn("Base64 length %4==1; likely invalid input");
+    }
+    return s;
   }
 
   function tryDecodeBase64(b64) {
     try {
-      // tolerate URL-safe base64
-      const norm = b64.replace(/-/g, '+').replace(/_/g, '/');
+      const norm = normalizeB64(b64);
       const txt = atob(norm);
-      // decode as UTF-8
+      // decode as UTF‑8
       const bytes = Uint8Array.from(txt, c => c.charCodeAt(0));
-      return new TextDecoder("utf-8").decode(bytes);
-    } catch { return null; }
+      const out = new TextDecoder("utf-8").decode(bytes);
+      L.info("Base64 decoded length:", out.length);
+      return out;
+    } catch (e) {
+      L.warn("Base64 decode failed:", e && e.message);
+      return null;
+    }
+  }
+
+  function looksLikeXmlText(s) {
+    if (!s) return false;
+    if (s.includes("<gpx")) return true;
+    if (/%3Cgpx/i.test(s)) return true; // URL-encoded "<gpx"
+    if (/^\s*</.test(s)) return true;
+    return false;
   }
 
   function tryDecodeText(s) {
     try {
-      const dec = decodeURIComponent(s);
-      if (dec.includes("<gpx") || dec.startsWith("<")) return dec;
-    } catch {}
-    return s;
+      // Try URL-decoding if it contains typical encodings
+      const needs = /%[0-9a-f]{2}/i.test(s) || /\+/.test(s);
+      const dec = needs ? decodeURIComponent(s.replace(/\+/g, "%20")) : s;
+      L.info("URI text decode attempted:", needs);
+      return dec;
+    } catch (e) {
+      L.warn("URI decode failed:", e && e.message);
+      return s;
+    }
   }
 
   async function fetchText(url) {
+    L.info("Fetching GPX URL:", url);
     const res = await fetch(url);
+    const ct = res.headers.get("content-type");
+    const txt = await res.text();
+    L.info("Fetch result:", { ok: res.ok, status: res.status, contentType: ct || "?", length: txt.length, sample: snippet(txt) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.text();
+    return txt;
   }
 
   async function loadFromParams() {
     const { gpx, gpxUrl, name } = getParams();
-    if (!gpx && !gpxUrl) return;
+    if (!gpx && !gpxUrl) {
+      L.info("No gpx or gpx_url params found. Nothing to ingest.");
+      return;
+    }
 
-    await until(() => typeof window.cwLoadGPXFromString === "function");
+    await (async () => {
+      const ok = await (new Promise((res) => {
+        let n = 0;
+        const t = setInterval(() => {
+          const ready = typeof window.cwLoadGPXFromString === "function";
+          if (ready || ++n >= 120) { clearInterval(t); res(ready); }
+        }, 250);
+      }));
+      if (!ok) L.warn("cwLoadGPXFromString not found after wait; proceeding anyway (may fail).");
+    })();
 
     try {
       if (gpxUrl) {
         const txt = await fetchText(gpxUrl);
-        window.cwLoadGPXFromString(txt, name);
+        if (!txt || !txt.includes("<gpx")) {
+          L.err("Fetched content does not look like GPX:", snippet(txt));
+          throw new Error("Fetched content is not GPX");
+        }
+        L.info("Calling loader from gpx_url, name:", name);
+        window.cwLoadGPXFromString && window.cwLoadGPXFromString(txt, name);
         return;
       }
 
-      // gpx payload: try base64 then URI/text
-      let txt = tryDecodeBase64(gpx);
-      if (!txt || !txt.includes("<gpx")) {
-        txt = tryDecodeText(gpx);
+      // gpx param present
+      L.info("Processing inline gpx param…");
+      let decoded = null;
+
+      if (looksLikeXmlText(gpx)) {
+        L.info("gpx looks like XML or URL-encoded XML; trying text path");
+        decoded = tryDecodeText(gpx);
+      } else {
+        L.info("gpx does not look like XML; trying Base64 path");
+        decoded = tryDecodeBase64(gpx);
+        // If Base64 failed, last resort: try text decode
+        if (!decoded || !decoded.includes("<gpx")) {
+          L.info("Base64 path did not yield XML; trying text decode as fallback");
+          decoded = tryDecodeText(gpx);
+        }
       }
-      if (!txt || !txt.includes("<gpx")) throw new Error("Invalid GPX payload");
-      window.cwLoadGPXFromString(txt, name);
+
+      if (!decoded || !decoded.includes("<gpx")) {
+        L.err("Invalid GPX payload after decode attempts. Sample:", snippet(decoded || gpx));
+        throw new Error("Invalid GPX payload");
+      }
+
+      L.info("Decoded GPX OK. Length:", decoded.length, "Sample:", snippet(decoded));
+      L.info("Calling loader with inline gpx, name:", name);
+      window.cwLoadGPXFromString && window.cwLoadGPXFromString(decoded, name);
     } catch (e) {
-      console.error("[ingest] GPX ingest error:", e);
-      // no alert here to avoid interrupting PWA launch; devs can check console
+      L.err("GPX ingest error:", e);
     }
   }
 
