@@ -59,6 +59,37 @@
     return s;
   }
 
+  // NEW: unwrap common Shortcut wrappers and data URIs
+  function sanitizeGpxParam(s) {
+    let v = String(s || "").trim();
+
+    // Detect and strip [[...]] placeholder wrappers (from documentation examples)
+    if (/^\[\[/.test(v) && /\]\]$/.test(v)) {
+      L.warn("Detected [[...]] wrapper in gpx param; stripping placeholders (use tokens in Atajos, not [[var]]).");
+      v = v.replace(/^\[\[/, "").replace(/\]\]$/, "");
+    }
+
+    // Strip surrounding single/double quotes
+    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+      L.info("Stripping surrounding quotes in gpx param");
+      v = v.slice(1, -1);
+    }
+
+    // If a data: URI was passed, split it
+    const m = /^data:([^;,]+);base64,(.*)$/i.exec(v);
+    if (m) {
+      L.info("Detected data: URI with base64; extracting payload. Content-Type:", m[1]);
+      v = m[2];
+    }
+
+    // Trim whitespace/newlines that may break base64
+    v = v.replace(/\s+/g, "");
+
+    // Log head/tail after sanitize
+    L.info("Sanitized gpx param (head/tail):", snippet(v));
+    return v;
+  }
+
   function tryDecodeBase64(b64) {
     try {
       const norm = normalizeB64(b64);
@@ -137,23 +168,25 @@
 
       // gpx param present
       L.info("Processing inline gpx param…");
-      let decoded = null;
 
-      if (looksLikeXmlText(gpx)) {
+      // NEW: sanitize common wrappers before detection/decoding
+      const gpxClean = sanitizeGpxParam(gpx);
+
+      let decoded = null;
+      if (looksLikeXmlText(gpxClean)) {
         L.info("gpx looks like XML or URL-encoded XML; trying text path");
-        decoded = tryDecodeText(gpx);
+        decoded = tryDecodeText(gpxClean);
       } else {
         L.info("gpx does not look like XML; trying Base64 path");
-        decoded = tryDecodeBase64(gpx);
-        // If Base64 failed, last resort: try text decode
+        decoded = tryDecodeBase64(gpxClean);
         if (!decoded || !decoded.includes("<gpx")) {
           L.info("Base64 path did not yield XML; trying text decode as fallback");
-          decoded = tryDecodeText(gpx);
+          decoded = tryDecodeText(gpxClean);
         }
       }
 
       if (!decoded || !decoded.includes("<gpx")) {
-        L.err("Invalid GPX payload after decode attempts. Sample:", snippet(decoded || gpx));
+        L.err("Invalid GPX payload after decode attempts. Sample:", snippet(decoded || gpxClean));
         throw new Error("Invalid GPX payload");
       }
 

@@ -97,6 +97,30 @@ https://lockevod.github.io/gpx/#gpx_url=[[GPX_URL]]&name=[[NombreURL]]
 https://lockevod.github.io/gpx/#name=Ruta%20de%20prueba&gpx_url=https://ejemplo.com/mi-ruta.gpx
 ```
 
+## Importante: cómo insertar variables en la acción “Texto”
+En los ejemplos verás marcadores como [[Base64URL]] o [[NombreURL]]. Son solo ejemplos legibles en la guía. En la app Atajos NO debes escribir [[...]] a mano.
+
+- En la acción “Texto”:
+  - Escribe la parte fija: https://lockevod.github.io/gpx/#gpx=
+  - Pulsa el botón de variables (el “píldora” azul / selector de magia) y elige la salida de tu acción “Sustituir texto” (la que renombraste a Base64URL).
+  - Escribe &name=
+  - Inserta de nuevo con el botón de variables la salida de “Codificar URL” (la que renombraste a NombreURL).
+  - Resultado (visualmente verás “píldoras” azules en lugar de [[...]]).
+
+Ejemplo visual esperado en Atajos (no literal):
+https://lockevod.github.io/gpx/#gpx=(Base64URL como variable)&name=(NombreURL como variable)
+
+## Diagnóstico rápido: URL empieza por [[PD94…
+Si en la consola ves algo como [[PD94… o la URL contiene [[...]]:
+- Causa: el Atajo insertó el texto literal [[Base64URL]] en lugar de la variable.
+- Solución:
+  1) Abre la acción “Texto”.
+  2) Borra las partes [[Base64URL]] y [[NombreURL]] si las escribiste a mano.
+  3) Inserta las variables reales usando el botón de variables (elige la salida de cada acción previa).
+  4) Vuelve a probar. Puedes añadir &log=1 al final para ver registros detallados:
+     - https://lockevod.github.io/gpx/#gpx=…&name=…&log=1
+     - https://lockevod.github.io/gpx/#gpx_url=…&name=…&log=1
+
 Consejos y alternativas
 - Si en tu iOS “Codificar” no acepta archivos, prueba a poner justo antes “Obtener detalles de archivos” → “Tamaño” (esto fuerza a tratar la entrada como datos) y vuelve a “Codificar (Base64)”. En iOS 16/17 la acción “Codificar” suele aceptar directamente “Entrada del atajo (Archivo)”.
 - Si la URL final es muy larga y Safari no la abre, usa el Atajo B (gpx_url) o comparte GPX más pequeños.

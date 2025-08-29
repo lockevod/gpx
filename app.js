@@ -2565,11 +2565,13 @@ function luminanceBarHTML(val) {
 
   init();
 
-  // --- GPX public loader + postMessage bridge (appended) ---
+  // --- GPX public loader for ingest.js (minimal, reuses existing flow) ---
   async function loadGPXFromString(gpxText, nameHint = "route.gpx") {
     try {
       if (!gpxText || typeof gpxText !== "string") return;
+      // limpia capa previa si existe
       if (trackLayer) map.removeLayer(trackLayer);
+
       trackLayer = new L.GPX(gpxText, {
         async: true,
         polyline_options: { color: 'blue' },
@@ -2580,41 +2582,33 @@ function luminanceBarHTML(val) {
           wptIconUrl: null
         }
       });
+
       trackLayer.on("loaded", async (evt) => {
         try {
           map.fitBounds(evt.target.getBounds());
           await segmentRouteByTime(evt.target.toGeoJSON());
+
+          // Nombre de ruta (usa meta si existe o fallback al hint)
           const baseName = (nameHint || "route").replace(/\.[^/.]+$/,"");
           const metaName = (evt.target.get_name && evt.target.get_name()) || baseName;
           const rutaEl = document.getElementById("rutaName");
           if (rutaEl) rutaEl.textContent = t("route_prefix") + (metaName || baseName);
+
           replaceGPXMarkers(evt.target);
           map.fitBounds(evt.target.getBounds(), { padding: [20, 20], maxZoom: 15 });
+          logDebug("GPX cargado desde ingest");
         } catch (e) {
-          logDebug("Error processing GPX: " + e.message, true);
+          logDebug("Error procesando GPX: " + e.message, true);
         }
       });
+
       trackLayer.addTo(map);
     } catch (err) {
-      logDebug("Error loading GPX: " + err.message, true);
+      logDebug("Error cargando GPX: " + err.message, true);
       alert(t("error_reading_gpx", { msg: err.message }));
     }
   }
-  // Expose for external callers (ingest layer / Shortcuts)
+  // expón para gpx-ingest.js
   window.cwLoadGPXFromString = loadGPXFromString;
-
-  // Optional: allow Apple Shortcut to postMessage GPX directly
-  window.addEventListener("message", (ev) => {
-    try {
-      const d = ev?.data;
-      if (!d || typeof d !== "object") return;
-      if (d.type !== "cw-gpx") return;
-      const txt = d.gpx || d.payload;
-      const name = d.name || "Shared route";
-      if (typeof txt === "string" && txt.trim().length) {
-        loadGPXFromString(txt, name);
-      }
-    } catch (_) {}
-  }, false);
-  // --- end GPX public loader + postMessage bridge ---
+  // --- end GPX public loader ---
 });
