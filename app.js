@@ -2168,11 +2168,38 @@ function luminanceBarHTML(val) {
   let resizeDebTimer = null; // for debounced resize
 
   function ensureTrackVisible() {
-    if (!map || !trackLayer || !trackLayer.getBounds) return;
-    const trackBounds = trackLayer.getBounds();
-    const mapBounds = map.getBounds();
-    if (mapBounds && trackBounds && mapBounds.contains(trackBounds)) return; // already fully visible
-    map.fitBounds(trackBounds, { padding: [12, 12], maxZoom: 15 });
+    if (!map || !trackLayer || typeof trackLayer.getBounds !== "function") return;
+
+    let trackBounds;
+    try {
+      trackBounds = trackLayer.getBounds();
+    } catch (_) {
+      // bounds not ready yet
+      return;
+    }
+
+    // Bounds may be undefined or not valid until the GPX "loaded" event fires
+    if (!trackBounds || typeof trackBounds.isValid !== "function" || !trackBounds.isValid()) {
+      console.debug("[cw] ensureTrackVisible: track bounds not ready/invalid");
+      return;
+    }
+
+    const mapBounds = (map && typeof map.getBounds === "function") ? map.getBounds() : null;
+
+    // If map bounds exist and contain track fully, nothing to do
+    if (mapBounds && typeof mapBounds.contains === "function") {
+      try {
+        if (mapBounds.contains(trackBounds)) return;
+      } catch (e) {
+        console.debug("[cw] ensureTrackVisible: contains() failed:", e?.message);
+      }
+    }
+
+    try {
+      map.fitBounds(trackBounds, { padding: [12, 12], maxZoom: 15 });
+    } catch (e) {
+      console.debug("[cw] ensureTrackVisible: fitBounds failed:", e?.message);
+    }
   }
   function scheduleMapResizeRecenter() {
     if (resizeDebTimer) clearTimeout(resizeDebTimer);
