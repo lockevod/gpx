@@ -1118,7 +1118,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       step.windCombined = formatWindCell(step.windSpeed, step.windGust, step.windDir);
-      step.rainCombined = formatRainCell(step.precipitation, step.precipProb);
+      step.rainCombined = formatRainCell(step.precipProb);
     });
 
     renderWeatherTable();
@@ -1602,6 +1602,24 @@ document.addEventListener("DOMContentLoaded", () => {
     firstCell.setAttribute("rowspan", "2");
     row.appendChild(firstCell);
 
+    // NEW: compact summary bar (only on small screens). Update/remove depending on viewport.
+    (function upsertCompactSummary() {
+      // CHANGED: always render the compact summary (no removal on large screens)
+      let cs = document.getElementById("compactSummary");
+      const panel = document.getElementById("controlsPanel");
+      const wrap = document.querySelector(".wtc-wrap");
+      const html = buildCombinedHeaderHTML(summaryHTML, sunHTML);
+      if (!cs) {
+        cs = document.createElement("div");
+        cs.id = "compactSummary";
+        cs.className = "compact-summary";
+        cs.innerHTML = html;
+        if (panel && wrap) panel.insertBefore(cs, wrap);
+      } else {
+        cs.innerHTML = html;
+      }
+    })();
+
     const maxM = viewData.length ? Math.max(...viewData.map(w => Number(w.distanceM || 0))) : 0;
 
     // NEW: detect runs of consecutive columns with same rounded km
@@ -1723,8 +1741,6 @@ document.addEventListener("DOMContentLoaded", () => {
         "UV index",
       ],
     };
-
-    // Key order (coincide con labels)
     const keys = [
       "temp",
       "windCombined",
@@ -1735,32 +1751,42 @@ document.addEventListener("DOMContentLoaded", () => {
       "uvindex",
     ];
 
+    // NEW: small icon for each metric row
+    const getRowIconHTML = (key) => {
+      const cls = (() => {
+        switch (key) {
+          case "temp":        return "wi-thermometer";
+          case "windCombined":return "wi-strong-wind";
+          case "rainCombined":return "wi-raindrop";
+          case "humidity":    return "wi-humidity";
+          case "cloudCover":  return "wi-cloud";
+          case "luminance":   return "wi-day-sunny";
+          case "uvindex":     return "wi-hot";
+          default:            return "wi-na";
+        }
+      })();
+      return `<i class="wi ${cls} label-ico" aria-hidden="true"></i>`;
+    };
 
-    // Construye etiquetas con unidades para los keys interesados
-    // Usamos HTML para poder forzar que ciertas partes queden en minúsculas
+    // Construye etiquetas con unidades para los keys interesados + icono + envoltorio de texto
     const labelsHTML = labels[lang].map((txt, i) => {
       const key = keys[i];
+      let base = txt;
       if (key === "temp") {
-        // temperatura: dejar unidad como está (ej. ºC / ºF)
-        return `${txt} (<span class="unit-temp">${tempUnitLabel}</span>)`;
+        base = `${txt} (<span class="unit-temp">${tempUnitLabel}</span>)`;
+      } else if (key === "windCombined") {
+        base = `${txt} (<span class="unit-lower" style="text-transform:lowercase">${windUnitLabel}</span>)`;
+      } else if (key === "rainCombined") {
+        base = `${txt} (<span class="unit-lower" style="text-transform:lowercase">${precipUnitLabel || 'mm'}</span>)`;
       }
-      if (key === "windCombined") {
-        // viento: forzar unidad en minúsculas dentro del header
-        return `${txt} (<span class="unit-lower" style="text-transform:lowercase">${windUnitLabel}</span>)`;
-      }
-      if (key === "rainCombined") {
-        // lluvia: forzar unidad en minúsculas dentro del header
-        return `${txt} (<span class="unit-lower" style="text-transform:lowercase">${precipUnitLabel || 'mm'}</span>)`;
-      }
-      return txt;
+      return `${getRowIconHTML(key)} <span class="label-text">${base}</span>`;
     });
  
-     // Ahora iterar como antes pero usando labelsWithUnits
+     // Ahora iterar como antes pero usando labelsHTML
      keys.forEach((key, idx) => {
-       row = document.createElement("tr");
+       const row = document.createElement("tr");
        const th = document.createElement("th");
-      // Insertamos HTML para poder controlar transformación del texto (minúsculas para unidades)
-      th.innerHTML = labelsHTML[idx];
+      th.innerHTML = labelsHTML[idx]; // CHANGED: include icon + wrapped text
        row.appendChild(th);
        viewData.forEach((w, i) => {
          const td = document.createElement("td");

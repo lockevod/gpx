@@ -1361,3 +1361,85 @@ body.dragging { user-select: none; }
 /* Hide ellipse halo by default inside the SVG, show when selected */
 .wind-divicon .wm-halo { display: none; }
 .wind-divicon.is-selected .wm-halo { display: block; }
+
+/* First-column label icons */
+#weatherTable th .label-ico {
+  color: #29519b;
+  font-size: 18px;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+/* Compact summary bar (hidden by default) */
+.compact-summary {
+  display: none;              /* CHANGED: hide by default; shown via media query */
+  background: #e3f0fd;
+  border: 1px solid #bdd7f6;
+  color: #203050;
+  border-radius: 8px;
+  padding: 6px 8px;
+  box-shadow: 0 3px 8px rgba(30,64,175,0.12);
+}
+
+/* Horizontal layout on small screens: summary (left) + sun times (right) */
+@media screen and (max-width: 700px) {
+  #compactSummary.compact-summary { display: flex; }
+  #compactSummary.compact-summary .combined-header {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+  }
+  #compactSummary .route-summary { flex: 1 1 auto; min-width: 0; }
+  #compactSummary .sun-wrap     { flex: 0 0 auto; min-width: max-content; }
+  #compactSummary .sunHeaderBox .sunRow { font-size: 11px; }
+  #compactSummary .sunHeaderBox .sunRow .wi { font-size: 14px; }
+}
+
+/* Keep the large sticky combined-header hidden on small screens to avoid duplicate info */
+@media screen and (max-width: 700px) {
+  #weatherTable thead tr:first-child th:first-child .combined-header {
+    display: none !important;
+  }
+}
+
+/* Ensure first header row (hours/km) stays intact (no changes needed here) */
+
+/* Small-screen: collapse first column to icons only (keep hours/km row intact) */
+@media screen and (max-width: 700px) {
+  :root { --cw-first-col: 56px; } /* narrow sticky first column */
+
+  /* Show the compact summary and hide the large combined header inside the table */
+  #compactSummary.compact-summary { display: flex; }
+  #weatherTable thead tr:first-child th:first-child .combined-header {
+    display: none !important; /* do not remove the cell, just its content */
+  }
+
+  /* Hide label text ONLY in metric label rows (exclude 1st header row and the icon-row) */
+  #weatherTable thead tr:not(.icon-row):not(:first-child) th:first-child .label-text {
+    display: none !important;
+  }
+  /* If a tbody exists in future, hide label text there too */
+  #weatherTable tbody th .label-text {
+    display: none !important;
+  }
+
+  /* Center the icon within the narrow first column for metric rows */
+  #weatherTable thead tr:not(.icon-row):not(:first-child) th:first-child,
+  #weatherTable tbody th:first-child {
+    text-align: center;
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  /* Keep the first header row (hours/km) left-aligned and unchanged */
+  #weatherTable thead tr:first-child th:first-child {
+    text-align: left;
+  }
+
+  /* Slightly compact the label icon on small screens */
+  #weatherTable th .label-ico {
+    margin-right: 0;
+    font-size: 16px;
+  }
+}
