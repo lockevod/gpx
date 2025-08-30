@@ -231,3 +231,68 @@ Notas
 
 Diagnóstico rápido
 - Si ves en consola “[cw] GPX error: No parseable layers…”, el texto recibido no trae <trk>/<rte>/<wpt> (está truncado). Revisa que el paso “Codificar (Base64)” use el Archivo y no el Nombre, o usa el Atajo C.
+
+## Alternativa con Scriptable (recomendada si Atajos no lee el archivo)
+Scriptable puede leer ficheros y abrir la PWA pasándole el GPX. Elige una de estas variantes:
+
+### Opción 1 — URL con Base64URL (rápida, pero limitada por longitud de URL)
+Pega este script en Scriptable (nuevo script) y ejecútalo:
+
+```javascript
+// filepath: /Users/sergi/DEVEL/gpx/AYUDA-Atajo-iOS.md
+// Scriptable: abrir PWA con GPX en Base64URL
+const PWA_URL = "https://lockevod.github.io/gpx/";
+const fileURL = await DocumentPicker.open(["public.xml","public.text","public.data"]);
+const fm = FileManager.iCloud();
+try { await fm.downloadFileFromiCloud(fileURL); } catch (_) {}
+const name = fm.fileName(fileURL, true);
+const gpxText = fm.readString(fileURL);
+const b64 = Data.fromString(gpxText).toBase64String();
+const b64url = b64.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+const url = `${PWA_URL}#gpx=${encodeURIComponent(b64url)}&name=${encodeURIComponent(name)}&log=1`;
+Safari.open(url);
+```
+
+Notas
+- Si el GPX es grande, la URL puede ser demasiado larga para Safari. En ese caso usa la Opción 2.
+
+### Opción 2 — WebView + postMessage (sin límites de URL)
+Carga la PWA en un WebView y envía el GPX con postMessage (la app ya lo soporta):
+
+```javascript
+// filepath: /Users/sergi/DEVEL/gpx/AYUDA-Atajo-iOS.md
+// Scriptable: abrir PWA en WebView y enviar GPX con postMessage
+const PWA_URL = "https://lockevod.github.io/gpx/";
+
+// Elegir archivo GPX
+const fileURL = await DocumentPicker.open(["public.xml","public.text","public.data"]);
+const fm = FileManager.iCloud();
+try { await fm.downloadFileFromiCloud(fileURL); } catch (_) {}
+const name = fm.fileName(fileURL, true);
+const gpx = fm.readString(fileURL);
+
+// Preparar inyección JS (escapando el contenido)
+const esc = (s) => s.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
+const js = `
+  (function(){
+    const until = (cond, t=80, d=150) => new Promise(r=>{
+      let n=0; const id=setInterval(()=>{ if(cond()){clearInterval(id);r(true);} else if(++n>t){clearInterval(id);r(false);} }, d);
+    });
+    // Espera opcional a que el loader exista
+    until(()=>typeof window.cwLoadGPXFromString==="function").then(()=>{
+      window.postMessage({ type:"cw-gpx", name:${JSON.stringify(name)}, gpx:\`${esc(gpx)}\` }, "*");
+    });
+  })();
+`;
+
+// Abrir WebView y enviar GPX
+const web = new WebView();
+await web.loadURL(PWA_URL);
+await web.waitForLoad();
+await web.evaluateJavaScript(js);
+await web.present(); // opcional: muestra la PWA embebida
+```
+
+Comprobación
+- Abre la consola con &log=1 si usas la Opción 1: verás “Decoded GPX OK …” y se cargará la ruta.
+- En la Opción 2, al presentar el WebView debes ver el mapa con la ruta cargada.
