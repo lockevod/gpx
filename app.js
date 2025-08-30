@@ -79,11 +79,15 @@ document.addEventListener("DOMContentLoaded", () => {
       api_provider_changed: "Proveedor API cambiado a {prov}",
       // nuevas claves para labels/placeholders
       provider_label: "Proveedor:",
-      api_key_label: "API Key MeteoBlue:",
-      api_key_label_ow: "API Key OpenWeather:",
+      api_key_init: "API Key",
+      api_key_label: "MeteoBlue:",
+      api_key_label_ow: "OpenWeather:",
       language_label: "Idioma:",
-      wind_units_label: "Unidades viento:",
-      temp_units_label: "Unidades temperatura:",
+      wind_units_label: "Viento:",
+      temp_units_label: "Temperatura:",
+      units_label: "Unidades/i18n",
+      precip_units_label: "Lluvia:",
+      distance_units_label: "Distancia:",
       route_datetime_label: "Fecha y hora ruta:",
       cycling_speed_label: "Velocidad media (km/h):",
       interval_label: "Intervalo (minutos):",
@@ -138,11 +142,15 @@ document.addEventListener("DOMContentLoaded", () => {
       api_provider_changed: "API provider changed to {prov}",
       // new keys
       provider_label: "Provider:",
-      api_key_label: "MeteoBlue API Key:",
-      api_key_label_ow: "OpenWeather API Key:",
+      api_key_init: "API Key",
+      api_key_label: "MeteoBlue:",
+      api_key_label_ow: "OpenWeather:",
       language_label: "Language:",
-      wind_units_label: "Wind units:",
-      temp_units_label: "Temperature units:",
+      wind_units_label: "Wind:",
+      temp_units_label: "Temperature:",
+      distance_units_label: "Distance:",
+      precip_units_label: "Rain:",
+      units_label: "Units/i18n",
       route_datetime_label: "Route date/time:",
       cycling_speed_label: "Average speed (km/h):",
       interval_label: "Interval (minutes):",
@@ -242,6 +250,8 @@ document.addEventListener("DOMContentLoaded", () => {
       language: getVal("language"),
       windUnits: getVal("windUnits"),
       tempUnits: getVal("tempUnits"),
+      distanceUnits: getVal("distanceUnits"), // NEW
+      precipUnits: getVal("precipUnits"),     // NEW
       cyclingSpeed: Number(getVal("cyclingSpeed")),
       apiKey: getVal("apiKey"),
       apiKeyOW: getVal("apiKeyOW"),
@@ -255,8 +265,8 @@ document.addEventListener("DOMContentLoaded", () => {
   function loadSettings() {
     const s = JSON.parse(localStorage.getItem("cwSettings") || "{}");
     [
-      "language","windUnits","tempUnits","cyclingSpeed",
-      "apiKey","apiKeyOW","apiSource","datetimeRoute","intervalSelect",
+      "language","windUnits","tempUnits","distanceUnits","precipUnits", // NEW
+      "cyclingSpeed","apiKey","apiKeyOW","apiSource","datetimeRoute","intervalSelect",
     ].forEach((id) => {
       const el = document.getElementById(id);
       if (s[id] != null && el) el.value = s[id];
@@ -357,7 +367,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (speedKmh < 50) return "fuerte";
     return "muy_fuerte"; // NEW: elevated winds (purple)
   }
-  function windToUnits(val, unit) { return unit === "ms" ? val / 3.6 : val; }
+  function windToUnits(val, unit) { 
+    if (unit === "ms") return val / 3.6; 
+    if (unit === "mph") return val * 0.621371; // NEW: kmh to mph
+    return val; // kmh
+  }
 
   // NEW: pick which wind value drives the marker intensity (auto policy)
   function windIntensityValue(speedKmh, gustKmh) {
@@ -1317,21 +1331,14 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
   function formatRainCell(precip, prob) {
-    // Devuelve HTML: primera línea precipitación; segunda línea (probabilidad)
     if (precip == null) return "-";
-
     const pNum = Number(precip);
     const probNum = prob == null ? null : Number(prob);
-
-    // Log para depuración rápida cuando se genera la celda
-    logDebug(`formatRainCell called: precip=${precip} -> ${pNum}, prob=${prob} -> ${probNum}`);
-
-    const top = `<span class="combined-top">${pNum.toFixed(1)}</span>`;
-
-    // Mostrar probabilidad sólo si ambos valores son numéricos y mayores que 0
+    const unit = getVal("precipUnits") || "mm";
+    const converted = unit === "in" ? pNum * 0.0393701 : pNum; // NEW: mm to in
+    const top = `<span class="combined-top">${converted.toFixed(1)}</span>`;
     const showProb = probNum != null && Number.isFinite(probNum) && pNum > 0 && probNum > 0;
     const bottom = showProb ? `<span class="combined-bottom">(${Math.round(probNum)}%)</span>` : "";
-
     return `<div class="weather-combined">${top}${bottom}</div>`;
   }
 
@@ -1499,6 +1506,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Unidades en minúsculas (solo viento/precip)
     const windUnitLc = (windUnitLabel || "").toString().toLowerCase();
     const precipUnitLc = (precipUnitLabel || "mm").toString().toLowerCase();
+    const distanceUnit = getVal("distanceUnits") || "km";
 
     const hasRange = (sum.tempMin != null) && (sum.tempMax != null);
     const lo = hasRange ? Math.round(Math.min(sum.tempMin, sum.tempMax)) : null;
@@ -1514,7 +1522,7 @@ document.addEventListener("DOMContentLoaded", () => {
       ? "-"
       : `${Number(sum.precipMax).toFixed(1)} <span class="unit-lower">${precipUnitLc}</span>`;
     const probTxt = (sum.probMax == null || Number(sum.probMax) <= 0) ? "" : ` (${Math.round(Number(sum.probMax))}%)`;
-
+   
     return `
       <div class="route-summary">
         <i class="wi ${sum.iconClass} rs-icon"></i>
@@ -1547,7 +1555,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // Unidades seleccionadas (precipUnits opcional, por defecto 'mm')
     const tempUnit = getVal("tempUnits"); // 'C' o 'F'
     const windUnit = getVal("windUnits"); // ej. 'ms', 'kmh', 'mph'
-    const precipUnit = getVal("precipUnits");
+    const precipUnit = (getVal("precipUnits") || "mm").toLowerCase();
+    const distanceUnit = getVal("distanceUnits") || "km";
 
     // Normaliza etiquetas de unidad para mostrar junto al nombre
     const degSymbol = "º";
@@ -1650,25 +1659,35 @@ document.addEventListener("DOMContentLoaded", () => {
       const isDup = dupFlags[i];
 
       // units (forced lowercase in header)
-      const unitKm = `<span class="unit-lower">km</span>`;
-      const unitM  = `<span class="unit-lower">m</span>`;
+      const unitKm = `<span class="unit-lower">${distanceUnit}</span>`;
+      const unitM  = `<span class="unit-lower">${distanceUnit === "mi" ? "mi" : "m"}</span>`; // NEW: mi uses ft
 
       let distText = "";
       if (Number.isFinite(m)) {
+        const convertedM = distanceUnit === "mi" ? m * 0.000621371 : m; // NEW: m to mi
         if (isDup) {
           // Duplicate rounded-km run: show real distance
-          if (m < 1000) distText = `${Math.round(m)} ${unitM}`;            // meters, no decimals
-          else          distText = `${(m / 1000).toFixed(1)} ${unitKm}`;   // km with 1 decimal
+          if (convertedM < 1000) distText = `${Math.round(convertedM)} ${unitM}`;            // meters, no decimals
+          else          distText = `${(convertedM / 1000).toFixed(1)} ${unitKm}`;   // km with 1 decimal
         } else {
           // Original behavior
-          if (Math.round(m) === 0) {
+          if (Math.round(convertedM) === 0) {
             distText = `0 ${unitKm}`;
           } else if (isLast) {
-            distText = `${(m / 1000).toFixed(1)} ${unitKm}`; // last with 1 decimal
-          } else if (m < 1000) {
-            distText = `${m.toFixed(1)} ${unitM}`;            // keep as before
+            if (distanceUnit === "mi") {
+              distText = `${convertedM.toFixed(1)} ${unitKm}`;
+            } else {
+              distText = `${(convertedM / 1000).toFixed(1)} ${unitKm}`;
+            }
+          } else if (convertedM < 1000) {
+            distText = `${convertedM.toFixed(1)} ${unitM}`;            // keep as before
           } else {
-            distText = `${Math.round(m / 1000)} ${unitKm}`;
+             if (distanceUnit === "mi") {
+              distText = `${convertedM.toFixed(1)} ${unitKm}`;
+            } else {
+              distText = `${(convertedM / 1000).toFixed(1)} ${unitKm}`;
+            }
+      
           }
         }
       }
@@ -2294,30 +2313,34 @@ function luminanceBarHTML(val) {
     
   }
   function bindUIEvents() {
-    document
-      .getElementById("toggleConfig")
-      .addEventListener("click", toggleConfig);
-    document
-      .getElementById("toggleDebug")
-      .addEventListener("click", toggleDebug);
+    const toggleConfigEl = document.getElementById("toggleConfig");
+    if (toggleConfigEl) toggleConfigEl.addEventListener("click", toggleConfig);
+    
+    const toggleDebugEl = document.getElementById("toggleDebug");
+    if (toggleDebugEl) toggleDebugEl.addEventListener("click", toggleDebug);
 
-    document.getElementById("closeConfig").addEventListener("click", () => {
-      document.getElementById("configMenu").style.display = "none";
+    const closeConfigEl = document.getElementById("closeConfig");
+    if (closeConfigEl) closeConfigEl.addEventListener("click", () => {
+      const menu = document.getElementById("configMenu");
+      if (menu) menu.style.display = "none";
     });
 
-    // file input change (mantengo comportamiento sin mostrar nombre del fichero)
-    document.getElementById("gpxFile").addEventListener("change", function () {
-      if (!this.files.length) {
-        lastGPXFile = null;
-        return;
-      }
-      lastGPXFile = this.files[0];
-      const val = (this.files[0].name) || (this.value.split("\\").pop() || this.value.split("/").pop() || "");
-      const rutaBase = val.replace(/\.[^/.]+$/, "");
-      const rutaEl = document.getElementById("rutaName");
-      if (rutaEl) rutaEl.textContent = rutaBase ? t("route_prefix") + rutaBase : "";
-      reloadFull();
-    });
+    // file input change
+    const gpxFileEl = document.getElementById("gpxFile");
+    if (gpxFileEl) {
+      gpxFileEl.addEventListener("change", function () {
+        if (!this.files.length) {
+          lastGPXFile = null;
+          return;
+        }
+        lastGPXFile = this.files[0];
+        const val = (this.files[0].name) || (this.value.split("\\").pop() || this.value.split("/").pop() || "");
+        const rutaBase = val.replace(/\.[^/.]+$/, "");
+        const rutaEl = document.getElementById("rutaName");
+        if (rutaEl) rutaEl.textContent = rutaBase ? t("route_prefix") + rutaBase : "";
+        reloadFull();
+      });
+    }
 
     const dtEl = document.getElementById("datetimeRoute");
     if (dtEl) {
@@ -2337,11 +2360,13 @@ function luminanceBarHTML(val) {
       });
     }
 
-    // Elementos que sí disparan recarga al cambiar (NO incluir cyclingSpeed)
+    // Elementos que disparan recarga
     [
       "language",
       "windUnits",
       "tempUnits",
+      "distanceUnits", // NEW
+      "precipUnits",   // NEW
       "apiKey",
       "apiKeyOW",
       "apiSource",
@@ -2371,19 +2396,17 @@ function luminanceBarHTML(val) {
             updateUnits();
           }
 
-          // NEW: react to apiKey changes for both MB and OWM
+          // NEW: react to apiKey changes
           if (id === "apiKey" || id === "apiKeyOW") {
-            const hasKey = !!getVal("apiKey") ;
+            const hasKey = !!getVal("apiKey");
             const hasKeyOW = !!getVal("apiKeyOW");
-            if ((apiSource === "meteoblue" ) && !hasKey) {
+            if ((apiSource === "meteoblue") && !hasKey) {
               const provName = apiSource === "openweather" ? "OpenWeather" : "MeteoBlue";
               setNotice(t("provider_key_missing", { prov: provName }), "warn");
             } else if ((apiSource === "meteoblue" || apiSource === "openweather") && !hasKeyOW) {
               const provName = apiSource === "openweather" ? "OpenWeather" : "MeteoBlue";
               setNotice(t("provider_key_missing", { prov: provName }), "warn");
-            } 
-            
-            else {
+            } else {
               clearNotice();
             }
           }
@@ -2393,21 +2416,21 @@ function luminanceBarHTML(val) {
       }
     });
 
-    // Presets dropdown: aplicar inmediatamente (copia valor y recarga)
-    const speedPresets = document.getElementById("speedPresets");
-    if (speedPresets) {
-      speedPresets.addEventListener("change", () => {
-        const v = speedPresets.value;
+    // Presets
+    const speedPresetsEl = document.getElementById("speedPresets");
+    if (speedPresetsEl) {
+      speedPresetsEl.addEventListener("change", () => {
+        const v = speedPresetsEl.value;
         if (!v) return;
         const cs = document.getElementById("cyclingSpeed");
         if (cs) cs.value = v;
-        lastAppliedSpeed = Number(v); // marcar como aplicado
+        lastAppliedSpeed = Number(v);
         saveSettings();
         reloadFull();
       });
     }
 
-    // Manual input: sólo aplicar/recargar si el usuario pulsa Enter
+    // Manual input
     const cyclingInput = document.getElementById("cyclingSpeed");
     if (cyclingInput) {
       cyclingInput.addEventListener("keydown", (ev) => {
@@ -2417,7 +2440,6 @@ function luminanceBarHTML(val) {
           reloadFull();
         }
       });
-      // Al perder foco: aplicar si el valor ha cambiado respecto al último aplicado
       cyclingInput.addEventListener("blur", () => {
         const v = Number(cyclingInput.value);
         if (!Number.isFinite(v)) return;
@@ -2427,22 +2449,19 @@ function luminanceBarHTML(val) {
           reloadFull();
         }
       });
-      // opcional: actualizar presets para reflejar el valor manual (sin recarga)
       cyclingInput.addEventListener("input", () => {
         const presets = document.getElementById("speedPresets");
         if (!presets) return;
-        // deseleccionar preset si el valor no coincide exactamente
         const val = cyclingInput.value;
         const opt = Array.from(presets.options).find(o => o.value === val);
         presets.value = opt ? opt.value : "";
       });
     }
 
-    // Bind API key test button
+    // Bind API key test buttons
     const chk = document.getElementById("checkApiKey");
     if (chk) chk.addEventListener("click", testMeteoBlueKey);
 
-    // Bind OW API key test button
     const chkOW = document.getElementById("checkApiKeyOW");
     if (chkOW) chkOW.addEventListener("click", testOpenWeatherKey);
   }

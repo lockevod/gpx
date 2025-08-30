@@ -25,50 +25,74 @@
 </nav>
 </header>
 
-<aside id="configMenu" hidden>
+<aside id="configMenu" style="display: none;">
   <div class="config-panel">
-    <button id="closeConfig" aria-label="Close" style="float:right; font-size:18px; cursor:pointer;">×</button>
-    <!-- provider -->
-    <label for="apiSource" data-i18n="provider_label">Proveedor:</label>
-    <select id="apiSource">
-      <option value="meteoblue" selected>MeteoBlue</option>
-      <option value="openmeteo">OpenMeteo</option>
-      <option value="openweather">OpenWeather</option>
-    </select>
-
-    <!-- api key -->
-    <label for="apiKey" data-i18n="api_key_label">API Key MeteoBlue:</label>
-    <input type="text" id="apiKey" data-i18n-placeholder="api_key_placeholder" placeholder="Introduce la API Key MeteoBlue" />
-    <!-- NEW: test button + inline status -->
-    <button type="button" id="checkApiKey" data-i18n="check_key">Check</button>
+    <div class="config-row">
+      <label for="apiSource" data-i18n="provider_label">Proveedor:</label>
+      <select id="apiSource">
+        <option value="meteoblue" selected>MeteoBlue</option>
+        <option value="openmeteo">OpenMeteo</option>
+        <option value="openweather">OpenWeather</option>
+      </select>
+    </div>
+  <h4 style="font-size: 14px; margin: 8px 0; text-decoration: underline; color: #203050;" data-i18n="api_key_init">API Key</h4>
+    <div class="config-row">
+      <label for="apiKey" data-i18n="api_key_label">MeteoBlue:</label>
+      <input type="text" id="apiKey" data-i18n-placeholder="api_key_placeholder" placeholder="Introduce la API Key MeteoBlue" />
+      <button type="button" id="checkApiKey" data-i18n="check_key">Check</button>
+    </div>
     <div id="apiKeyStatus" class="key-status" aria-live="polite"></div>
 
-    <!-- api key OW -->
-    <label for="apiKeyOW" data-i18n="api_key_label_ow">API Key OpenWeather:</label>
-    <input type="text" id="apiKeyOW" data-i18n-placeholder="api_key_placeholder" placeholder="Introduce la API Key OpenWeather" />
-    <!-- NEW: test button + inline status -->
-    <button type="button" id="checkApiKeyOW" data-i18n="check_key">Check</button>
+    <div class="config-row">
+      <label for="apiKeyOW" data-i18n="api_key_label_ow">OpenWeather:</label>
+      <input type="text" id="apiKeyOW" data-i18n-placeholder="api_key_placeholder" placeholder="Introduce la API Key OpenWeather" />
+      <button type="button" id="checkApiKeyOW" data-i18n="check_key">Check</button>
+    </div>
     <div id="apiKeyStatusOW" class="key-status" aria-live="polite"></div>
-    
 
-    <!-- language -->
-    <label for="language" data-i18n="language_label">Idioma:</label>
-    <select id="language">
-      <option value="es" selected>Español</option>
-      <option value="en">English</option>
-    </select>
+    <h4 style="font-size: 14px; margin: 8px 0; text-decoration: underline; color: #203050;" data-i18n="units_label">Localización</h4>
+    <div class="config-row">
+      <label for="language" data-i18n="language_label">Idioma:</label>
+      <select id="language">
+        <option value="es" selected>Español</option>
+        <option value="en">English</option>
+      </select>
+    </div>
+    <div class="config-row">
+      <div class="unit-pair">
+        <label for="windUnits" data-i18n="wind_units_label">Unidades viento:</label>
+        <select id="windUnits">
+          <option value="kmh" selected>Km/h</option>
+          <option value="ms">m/s</option>
+          <option value="mph">Mph</option>
+        </select>
+      </div>
+      <div class="unit-pair">
+        <label for="tempUnits" data-i18n="temp_units_label">Unidades temperatura:</label>
+        <select id="tempUnits">
+          <option value="C" selected>°C</option>
+          <option value="F">°F</option>
+        </select>
+      </div>
+    </div>
+   
 
-    <label for="windUnits" data-i18n="wind_units_label">Unidades viento:</label>
-    <select id="windUnits">
-      <option value="kmh" selected>Km/h</option>
-      <option value="ms">m/s</option>
-    </select>
-
-    <label for="tempUnits" data-i18n="temp_units_label">Unidades temperatura:</label>
-    <select id="tempUnits">
-      <option value="C" selected>°C</option>
-      <option value="F">°F</option>
-    </select>
+    <div class="config-row">
+      <div class="unit-pair">
+        <label for="distanceUnits" data-i18n="distance_units_label">Unidades distancia:</label>
+        <select id="distanceUnits">
+          <option value="km" selected>Km</option>
+          <option value="mi">Mi</option>
+        </select>
+      </div>
+      <div class="unit-pair">
+        <label for="precipUnits" data-i18n="precip_units_label">Unidades precipitación:</label>
+        <select id="precipUnits">
+          <option value="mm" selected>Mm</option>
+          <option value="in">In</option>
+        </select>
+      </div>
+    </div>
   </div>
 </aside>
 

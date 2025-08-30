@@ -75,16 +75,48 @@ nav button:hover {
   position: absolute;
   top: 3.5rem;
   right: 1rem;
-  width: 360px; /* a bit wider for stacked fields */
+  width: 360px;
   background: #ffffff;
   border: 1px solid #bdd7f6;
   box-shadow: 0 10px 24px rgba(30, 64, 175, 0.18);
-  padding: 12px 14px 16px; /* tighter, consistent paddings */
+  padding: 12px 14px 16px;
   border-radius: 10px;
   z-index: 10000;
   resize: both;
   overflow-y: auto;
   font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#configMenu .config-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+#configMenu .config-row label {
+  flex: 0 0 auto;
+  min-width: 120px;
+}
+#configMenu .config-row select,
+#configMenu .config-row input[type="text"] {
+  flex: 1;
+}
+#configMenu .config-row button {
+  flex: 0 0 auto;
+}
+#configMenu .unit-pair {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#configMenu .unit-pair label {
+  flex: 0 0 auto;
+  min-width: 120px;
+}
+#configMenu .unit-pair select {
+  flex: 1;
 }
 #configMenu #closeConfig {
   position: absolute;
@@ -1173,6 +1205,13 @@ input[type="number"] {
   width: 65%; /* make it span the full panel width */
 }
 
+#configMenu #apiKeyOW {
+  height: 36px;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  width: 65%; /* make it span the full panel width */
+}
+
 /* Themed “Check API” button */
 #configMenu #checkApiKey {
   align-self: flex-start;
@@ -1190,10 +1229,33 @@ input[type="number"] {
   cursor: pointer;
   transition: background-color 120ms ease, transform 100ms ease, opacity 120ms ease;
 }
+
+#configMenu #checkApiKeyOW {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #2563eb;
+  color: #fff;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 120ms ease, transform 100ms ease, opacity 120ms ease;
+}
+
 #configMenu #checkApiKey::before { content: "🔍"; }
 #configMenu #checkApiKey.testing::before { content: "⏳"; }
 #configMenu #checkApiKey:hover { background: #1d4ed8; transform: translateY(-1px); }
 #configMenu #checkApiKey:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+#configMenu #checkApiKeyOW::before { content: "🔍"; }
+#configMenu #checkApiKeyOW.testing::before { content: "⏳"; }
+#configMenu #checkApiKeyOW:hover { background: #1d4ed8; transform: translateY(-1px); }
+#configMenu #checkApiKeyOW:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
 /* Inline status for API key test */
 #configMenu .key-status {
